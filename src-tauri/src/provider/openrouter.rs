@@ -31,11 +31,11 @@ impl OpenRouterProvider {
 
     fn build_messages(&self, req: &TranslateRequest) -> Vec<ChatMessage> {
         let style_hint = match req.style {
-            TranslationStyle::Native => "Use idiomatic phrasing that sounds native.",
-            TranslationStyle::Formal => "Use a formal, professional register.",
-            TranslationStyle::Casual => "Use a casual, conversational register.",
-            TranslationStyle::Technical => "Preserve technical terminology and structure precisely.",
-            TranslationStyle::Literal => "Translate as literally as faithful grammar allows.",
+            TranslationStyle::Native => "Phrasing should sound natural to a native speaker, but never change the meaning, register, or sentence type of the source.",
+            TranslationStyle::Formal => "Use a formal, professional register without changing meaning or sentence type.",
+            TranslationStyle::Casual => "Use a casual, conversational register without changing meaning or sentence type.",
+            TranslationStyle::Technical => "Preserve technical terminology, structure, and tone exactly.",
+            TranslationStyle::Literal => "Translate as literally as faithful grammar allows, word-by-word where possible.",
         };
         let source_hint = match req.source.as_deref() {
             Some("auto") | None => "Detect the source language automatically.".to_string(),
@@ -43,16 +43,24 @@ impl OpenRouterProvider {
         };
         let target_name = lookup_name(&req.target);
         let system = format!(
-            "You are a professional translator. {source_hint} Translate the user's text into {target_name} ({}). {style_hint} \
-Preserve formatting, punctuation, line breaks, markdown, code blocks, URLs, numbers, and proper nouns. \
-Do NOT add any commentary, quotation marks around the result, or labels. Output ONLY the translation.",
-            req.target
+            "You are a professional translator. {source_hint} Translate the user's next message into {target_name} ({code}).\n\
+\n\
+HARD RULES (these override style, fluency, and intuition):\n\
+1. Output ONLY the translation. No preamble, no commentary, no labels, no surrounding quotes, no notes, no alternatives.\n\
+2. Preserve the SENTENCE TYPE exactly. If the source is a statement, the translation must be a statement. If it is a question, it must be a question. If it is an imperative, fragment, or exclamation, keep it that way. Never convert between these. Never add interrogative phrasing (\"Can I...\", \"May I...\", \"Should we...\", etc.) unless the source itself was a question.\n\
+3. Preserve PUNCTUATION exactly. Do not add, remove, or change question marks, periods, exclamation marks, ellipses, dashes, brackets, or quotes. If the source ends without punctuation, the translation ends without punctuation. If the source ends with a period, end with a period. The presence and absence of every punctuation mark is meaningful.\n\
+4. Preserve CASE and FORMATTING. Keep the original capitalization style (Title Case, lowercase, ALL CAPS, sentence case). Keep all line breaks, indentation, leading and trailing whitespace, markdown syntax, code blocks, URLs, numbers, emails, file paths, and proper nouns untouched. Translate prose around them only.\n\
+5. Do not reinterpret ambiguity. If the source is ambiguous, render the most direct equivalent. Never add words to clarify intent that is not explicit in the source.\n\
+6. {style_hint}\n\
+\n\
+Translate now.",
+            code = req.target,
         );
         let mut messages = vec![ChatMessage { role: "system".into(), content: system }];
         if let Some(ctx) = &req.context {
             messages.push(ChatMessage {
                 role: "system".into(),
-                content: format!("Surrounding context for disambiguation only (do not translate this): {ctx}"),
+                content: format!("Surrounding context for disambiguation only. Do not translate or output this context: {ctx}"),
             });
         }
         messages.push(ChatMessage { role: "user".into(), content: req.text.clone() });
